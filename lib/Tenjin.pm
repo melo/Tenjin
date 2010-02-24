@@ -174,6 +174,7 @@ sub render {
 
 	$context ||= {};
 	$context->{'_engine'} = $self;
+	$layout = 1 unless defined $use_layout;
 
 	my $template = $self->get_template($template_name, $context); # pass $context only for preprocessing
 	my $output = $template->_render($context);
