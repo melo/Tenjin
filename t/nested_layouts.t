@@ -13,5 +13,10 @@ is(
   '<outside><inside>fake</inside></outside>',
   'Single level of layouts work'
 );
+is(
+  $t->render('top.html'),
+  '<outside><inside><top>content</top></inside></outside>',
+  'Multiple levels of layouts work'
+);
 
 done_testing();

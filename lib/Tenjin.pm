@@ -142,7 +142,7 @@ sub new {
 	return bless $self, $class;
 }
 
-=head2 render( $tmpl_name, [\%context, $use_layout] )
+=head2 render( $tmpl_name, [\%context, $layout] )
 
 Renders a template whose name is identified by C<$tmpl_name>. Remember that a prefix
 and a postfix might be added if they where set when creating the Tenjin instance.
@@ -151,16 +151,13 @@ C<$context> is a hash-ref containing the variables that will be available for us
 the templates. So, for example, if your C<\%context> is { message => 'Hi there }, then
 you can use C<$message> inside your templates.
 
-C<$use_layout> is a flag denoting whether or not to render this template into a layout
-template (when doing so, the template will be rendered, then the rendered output will be
-added to the context hash-ref as '_content', and finally the layout template will be rendered
-with the revised context and returned. If C<$use_layout> is 1, than Tenjin will use the
-layout template that was set when creating the Tenjin instance (via the 'layout' configuration
-option). If you want to use a different layout template (or if you haven't defined a layout
-template when creating the Tenjin instance), then you must add the layout template's name
-to the context as '_layout'. You can also just pass the layout template's name as C<$use_layout>,
-which has precendence over C<< $context->{_layout} >>. If C<$use_layout> is 0 or undefined,
-then a layout template will not be used, even if C<< $context->{_layout} >> is defined.
+C<$layout> is the name of the layout template to use. It overrides the
+layout defined in the Tejin instance (via the C<layout> option).
+When using layouts, the content of the rendered template is
+available inside the layout template in the C<< $context->{_content} >>
+slot. If you want to use a different layout template for a specific
+template, you can set the layout template's name to the context as
+'_layout' (C<< $context->{_layout} = 'my_specific_layout'; >>).
 
 Please note that by default file templates are cached on disk (with a '.cache') extension.
 Tenjin automatically deprecates these cache files every 10 seconds. If you
@@ -170,34 +167,25 @@ variable with your preferred value.
 =cut
 
 sub render {
-	my ($self, $template_name, $context, $use_layout) = @_;
+	my ($self, $template_name, $context, $layout) = @_;
 
 	$context ||= {};
 	$context->{'_engine'} = $self;
-	$layout = 1 unless defined $use_layout;
+	$layout = 1 unless defined $layout;
 
-	my $template = $self->get_template($template_name, $context); # pass $context only for preprocessing
-	my $output = $template->_render($context);
-	die("*** ERROR: $template->{filename}\n", $@) if $@;
+  my $output;
+  while (1) {
+    my $template = $self->get_template($template_name, $context); # pass $context only for preprocessing
+  	$output = $template->_render($context);
+  	die("*** ERROR: $template->{filename}\n", $@) if $@;
 
-	# should we render inside a layout template?
-	if ($use_layout) {
-		# was a layout template name passed, or should we use the layout defined
-		# in when creating the engine instance?
-		my $layout_tmpl = $use_layout =~ m/^1$/ ? $self->{layout} : $use_layout;
-		$layout_tmpl ||= $context->{_layout};
-		
-		# make sure we have a layout template to render
-		return $output unless $layout_tmpl;
+    $layout = delete $context->{_layout} if exists $context->{_layout};
+    $layout = $self->{layout} if $layout && $layout eq '1';
+    last unless $layout;
 
-		# add the output of the rendered template to the context as '_content'
-		# and remove the reference to the layout from the context (if present)
+		$template_name = $layout;
+		$layout = undef;
 		$context->{_content} = $output;
-		delete $context->{_layout};
-		
-		# render the layout template
-		$output = $self->get_template($layout_tmpl, $context)->_render($context);
-		die("*** ERROR: $layout_tmpl\n", $@) if $@;
 	}
 
 	return $output;
